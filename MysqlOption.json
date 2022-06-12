@@ -1,0 +1,6 @@
+{
+  "host": "localhost",
+  "database": "little_heart_bot_2",
+  "user": "root",
+  "password": "mysqlpassword"
+}
