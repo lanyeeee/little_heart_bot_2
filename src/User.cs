@@ -25,7 +25,7 @@ public class User
     {
         Targets = new List<Target>();
         await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
-        string query = $"select * from target_table where  uid = {Uid}";
+        string query = $"select * from target_table where  uid = {Uid} and completed = 0";
         await using var comm = new MySqlCommand(query, conn);
         await using var reader = await comm.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -231,7 +231,7 @@ public class User
                 await comm.ExecuteNonQueryAsync();
             }
 
-            await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕成功");
+            // await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕成功");
             await Task.Delay(3000);
         }
     }
