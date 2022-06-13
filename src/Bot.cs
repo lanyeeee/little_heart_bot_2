@@ -400,19 +400,37 @@ public class Bot
         {
             if (parameter == "all")
             {
-                await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
-                string query = $"delete from target_table where uid = {uid}";
-                await using var comm = new MySqlCommand(query, conn);
-                await comm.ExecuteNonQueryAsync();
+                _sessions[uid].TargetNum = 0;
+                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+                {
+                    string query = $"delete from target_table where uid = {uid}";
+                    await using var comm = new MySqlCommand(query, conn);
+                    await comm.ExecuteNonQueryAsync();
+                }
+                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+                {
+                    string query = $"update user_table set target_num = 0 where uid = {uid}";
+                    await using var comm = new MySqlCommand(query, conn);
+                    await comm.ExecuteNonQueryAsync();
+                }
             }
             else if (Globals.IsNumeric(parameter))
             {
-                await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
-                string query = $"delete from target_table where uid = {uid} and target_uid = @target_uid";
-                await using var comm = new MySqlCommand(query, conn);
-                comm.Parameters.AddWithValue("@target_uid", parameter);
-                await comm.PrepareAsync();
-                await comm.ExecuteNonQueryAsync();
+                _sessions[uid].TargetNum--;
+                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+                {
+                    string query = $"delete from target_table where uid = {uid} and target_uid = @target_uid";
+                    await using var comm = new MySqlCommand(query, conn);
+                    comm.Parameters.AddWithValue("@target_uid", parameter);
+                    await comm.PrepareAsync();
+                    await comm.ExecuteNonQueryAsync();
+                }
+                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+                {
+                    string query = $"update user_table set target_num = {_sessions[uid].TargetNum} where uid = {uid}";
+                    await using var comm = new MySqlCommand(query, conn);
+                    await comm.ExecuteNonQueryAsync();
+                }
             }
         }
     }
