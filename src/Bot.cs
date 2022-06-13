@@ -362,7 +362,7 @@ public class Bot
                     await using (var conn1 = await Globals.GetOpenedMysqlConnectionAsync())
                     {
                         string sql =
-                            $"update target_table set target_name = '{targetName}',room_id={roomId},msg_content = @msg,msg_status = 0 where uid = {uid} and target_uid = {targetUid}";
+                            $"update target_table set target_name = '{targetName}',room_id={roomId},msg_content = @msg,completed = 0,msg_status = 0 where uid = {uid} and target_uid = {targetUid}";
                         await using var comm1 = new MySqlCommand(sql, conn1);
                         comm1.Parameters.AddWithValue("@msg", msg);
                         await comm1.ExecuteNonQueryAsync();

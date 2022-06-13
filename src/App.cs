@@ -86,7 +86,7 @@ public class App
             await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
             {
                 string query =
-                    $"select *  from target_table where uid = {user.Uid}";
+                    $"select *  from target_table where uid = {user.Uid} and completed = 0";
                 await using var comm = new MySqlCommand(query, conn);
                 await using var reader = await comm.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
