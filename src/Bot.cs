@@ -224,12 +224,37 @@ public class Bot
                 targetText += "未发送原因：" + msgText + "\n";
             }
         }
-
-        string msg = $"所有任务状态：\n" +
+        
+        string msg = "所有任务状态：\n" +
                      targetText + "\n" +
                      $"cookie状态：{cookieText}，{cookieStatusText}\n" +
                      $"今日任务状态：{completedText}\n" +
                      $"已用查询次数：{configNumText}\n";
+        
+        if (msg.Length > 470) //上限提升后文字可能会过长，如果太长则化简
+        {
+            targetText = "";
+            foreach (var target in targets)
+            {
+                int msgNum = target.MsgStatus == 1 ? 1 : 0;
+                targetText +=
+                    $"{target.Name}：弹幕({msgNum}/1) 点赞({target.LikeNum}/3) 分享({target.ShareNum}/5)\n";
+            }
+            msg = "所有任务状态(简略版)：\n" +
+                  targetText + "\n" +
+                  $"cookie状态：{cookieText}，{cookieStatusText}\n" +
+                  $"今日任务状态：{completedText}\n" +
+                  $"已用查询次数：{configNumText}\n";
+        }
+
+        if (msg.Length > 470) //如果化简后还是太长，就直接省略
+        {
+            msg = "所有任务状态：\n" +
+                  "目标太多，全列出来长度会超过私信限制，因此直接省略\n" + "\n" +
+                  $"cookie状态：{cookieText}，{cookieStatusText}\n" +
+                  $"今日任务状态：{completedText}\n" +
+                  $"已用查询次数：{configNumText}\n";
+        }
 
         JObject obj = new JObject();
         obj["content"] = msg;
@@ -296,7 +321,7 @@ public class Bot
                 string targetUid = pair[0].Trim();
                 string msg = pair[1].Trim();
                 //targetUid不是数字 或者 弹幕太长 或者 设置的目标太多，就忽略掉
-                if (!Globals.IsNumeric(targetUid) || msg.Length > 20 || _sessions[uid].TargetNum >= 10)
+                if (!Globals.IsNumeric(targetUid) || msg.Length > 20 || _sessions[uid].TargetNum >= 50)//TODO  暂时将上限开到50看看效果
                 {
                     return;
                 }
@@ -363,7 +388,8 @@ public class Bot
 
                     await using (var conn1 = await Globals.GetOpenedMysqlConnectionAsync())
                     {
-                        string sql = $"update user_table set completed = 0 where uid = {uid}";
+                        _sessions[uid].TargetNum++;
+                        string sql = $"update user_table set completed = 0,target_num=target_num+1 where uid = {uid}";
                         await using var comm1 = new MySqlCommand(sql, conn1);
                         await comm1.ExecuteNonQueryAsync();
                     }

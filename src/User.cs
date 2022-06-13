@@ -25,7 +25,7 @@ public class User
     {
         Targets = new List<Target>();
         await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
-        string query = $"select * from target_table where  uid = {Uid} and completed = 0";
+        string query = $"select * from target_table where  uid = {Uid} and completed = 0 limit 5";
         await using var comm = new MySqlCommand(query, conn);
         await using var reader = await comm.ExecuteReaderAsync();
         while (await reader.ReadAsync())
