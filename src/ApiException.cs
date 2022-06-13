@@ -1,5 +1,3 @@
-using System;
-
 namespace little_heart_bot_2;
 
 public class ApiException : Exception

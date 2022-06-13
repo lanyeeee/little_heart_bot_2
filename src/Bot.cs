@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
 using MySqlConnector;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -37,16 +32,14 @@ public class Bot
         string query = "select * from bot_table";
         using var comm = new MySqlCommand(query, conn);
         using var reader = comm.ExecuteReader();
-        if (reader.Read())
-        {
-            _uid = reader.GetString("uid");
-            _cookie = reader.GetString("cookie");
-            _csrf = reader.GetString("csrf");
-            _devId = reader.GetString("dev_id");
-            Globals.AppStatus = reader.GetInt32("app_status");
-            Globals.ReceiveStatus = reader.GetInt32("receive_status");
-            Globals.SendStatus = reader.GetInt32("send_status");
-        }
+        if (!reader.Read()) return;
+        _uid = reader.GetString("uid");
+        _cookie = reader.GetString("cookie");
+        _csrf = reader.GetString("csrf");
+        _devId = reader.GetString("dev_id");
+        Globals.AppStatus = reader.GetInt32("app_status");
+        Globals.ReceiveStatus = reader.GetInt32("receive_status");
+        Globals.SendStatus = reader.GetInt32("send_status");
     }
 
     private async Task FetchSession()
@@ -112,14 +105,13 @@ public class Bot
             throw new ApiException();
         }
 
-        var ss = responseJson["data"]!["session_list"];
+        JToken? blockedList = responseJson["data"]!["session_list"];
 
-        if (ss != null)
+        if (blockedList == null) return sessionList;
+
+        foreach (var blockedSession in blockedList)
         {
-            foreach (var s in ss)
-            {
-                sessionList?.Add(s);
-            }
+            sessionList?.Add(blockedSession);
         }
 
         return sessionList;
@@ -204,36 +196,36 @@ public class Bot
             targetText +=
                 $"{target.Name}(uid:{target.Uid})：弹幕({msgNum}/1) 点赞({target.LikeNum}/3) 分享({target.ShareNum}/5)\n";
             targetText += $"弹幕：{target.MsgContent}\n";
-            if (target.MsgStatus != 1)
-            {
-                string msgText = "";
-                if (target.MsgStatus == 0) //还未发送
-                {
-                    msgText = "排队中";
-                }
-                else if (target.MsgStatus == -1) //屏蔽词
-                {
-                    msgText = "弹幕中含有屏蔽词";
-                }
-                else if (target.MsgStatus == -2) //UL等级不够
-                {
-                    msgText = "可能是UL等级低于目标直播间屏蔽等级";
-                }
-                else if (target.MsgStatus == -3) //cookie错误或过期
-                {
-                    msgText = "cookie错误或已过期";
-                }
-                else if (target.MsgStatus == -4) //没直播间
-                {
-                    msgText = "目标未开通直播间";
-                }
-                else if (target.MsgStatus == -5) //被封
-                {
-                    msgText = "被目标直播间禁言";
-                }
 
-                targetText += "未发送原因：" + msgText + "\n";
+            if (target.MsgStatus == 1) continue;
+
+            string msgText = "";
+            if (target.MsgStatus == 0) //还未发送
+            {
+                msgText = "排队中";
             }
+            else if (target.MsgStatus == -1) //屏蔽词
+            {
+                msgText = "弹幕中含有屏蔽词";
+            }
+            else if (target.MsgStatus == -2) // 可能是UL等级不够
+            {
+                msgText = "可能是UL等级低于目标直播间屏蔽等级";
+            }
+            else if (target.MsgStatus == -3) //cookie错误或过期
+            {
+                msgText = "cookie错误或已过期";
+            }
+            else if (target.MsgStatus == -4) //没直播间
+            {
+                msgText = "目标未开通直播间";
+            }
+            else if (target.MsgStatus == -5) //被封
+            {
+                msgText = "被目标直播间禁言";
+            }
+
+            targetText += "未发送原因：" + msgText + "\n";
         }
 
         string msg = "所有任务状态：\n" +
@@ -262,11 +254,8 @@ public class Bot
         if (msg.Length > 470) //如果化简后还太长，则极简
         {
             targetText = "";
-            foreach (var target in targets)
-            {
-                targetText +=
-                    $"{target.Name}\n";
-            }
+
+            targets.ForEach(target => targetText += $"{target.Name}\n");
 
             msg = "所有任务状态(极简版)：\n" +
                   targetText + "\n" +
@@ -550,38 +539,37 @@ public class Bot
         if (messages == null) return;
         foreach (var msg in messages)
         {
-            if ((int?)msg["timestamp"] > lastTimestamp && (string?)msg["sender_uid"] != _uid &&
-                (int?)msg["msg_type"] == 1)
-            {
-                try
-                {
-                    string? timestamp = (string?)msg["timestamp"];
-                    string? contentJson = (string?)msg["content"];
-                    if (timestamp == null || contentJson == null) return;
+            if ((int?)msg["timestamp"] <= lastTimestamp || (string?)msg["sender_uid"] == _uid ||
+                (int?)msg["msg_type"] != 1) continue;
 
-                    _sessions[uid].MsgTimestamp = timestamp;
-                    string? content = (string?)JObject.Parse(contentJson)["content"];
-                    content = content?.Trim();
-                    await _logger.Log($"{uid}：{content}");
-                    if (content?.StartsWith("/") ?? false)
+            try
+            {
+                string? timestamp = (string?)msg["timestamp"];
+                string? contentJson = (string?)msg["content"];
+                if (timestamp == null || contentJson == null) return;
+
+                _sessions[uid].MsgTimestamp = timestamp;
+                string? content = (string?)JObject.Parse(contentJson)["content"];
+                content = content?.Trim();
+                await _logger.Log($"{uid}：{content}");
+                if (content?.StartsWith("/") ?? false)
+                {
+                    string[] pair = content.Split(" ", 2);
+                    if (pair.Length == 2)
                     {
-                        string[] pair = content.Split(" ", 2);
-                        if (pair.Length == 2)
-                        {
-                            string command = pair[0].Trim();
-                            string parameter = pair[1].Trim();
-                            await HandleCommand(uid, command, parameter);
-                        }
-                        else
-                        {
-                            string command = pair[0].Trim();
-                            await HandleCommand(uid, command);
-                        }
+                        string command = pair[0].Trim();
+                        string parameter = pair[1].Trim();
+                        await HandleCommand(uid, command, parameter);
+                    }
+                    else
+                    {
+                        string command = pair[0].Trim();
+                        await HandleCommand(uid, command);
                     }
                 }
-                catch (JsonReaderException)
-                {
-                }
+            }
+            catch (JsonReaderException)
+            {
             }
         }
     }
@@ -660,31 +648,29 @@ public class Bot
 
     private async Task<bool> IsNewDay()
     {
-        if (DateTimeOffset.Now.ToUnixTimeSeconds() - _midnight > 24 * 60 * 60 + 10 * 60) //过了00:10就算新的一天
+        if (DateTimeOffset.Now.ToUnixTimeSeconds() - _midnight < 24 * 60 * 60 + 10 * 60)
+            return false;
+
+        //新的一天要把一些数据重置
+        DateTimeOffset today = DateTime.Today;
+        _midnight = today.ToUnixTimeSeconds();
+
+        await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
         {
-            //新的一天要把一些数据重置
-            DateTimeOffset today = DateTime.Today;
-            _midnight = today.ToUnixTimeSeconds();
-
-            await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
-            {
-                string query =
-                    "update target_table set msg_status = 0,completed = 0,share_num = 0,like_num = 0 where 1";
-                await using var comm = new MySqlCommand(query, conn);
-                await comm.ExecuteNonQueryAsync();
-            }
-
-            await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
-            {
-                string query = "update user_table set completed = 0,config_num = 0 where 1";
-                await using var comm = new MySqlCommand(query, conn);
-                await comm.ExecuteNonQueryAsync();
-            }
-
-            return true;
+            string query =
+                "update target_table set msg_status = 0,completed = 0,share_num = 0,like_num = 0 where 1";
+            await using var comm = new MySqlCommand(query, conn);
+            await comm.ExecuteNonQueryAsync();
         }
 
-        return false;
+        await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+        {
+            string query = "update user_table set completed = 0,config_num = 0 where 1";
+            await using var comm = new MySqlCommand(query, conn);
+            await comm.ExecuteNonQueryAsync();
+        }
+
+        return true;
     }
 
     private string MakeSign()
