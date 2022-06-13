@@ -703,7 +703,7 @@ public class Bot
                 lastSendStatus = Globals.SendStatus;
             }
 
-            await Task.Delay(60 * 1000);
+            await Task.Delay(1000);
         }
     }
 
@@ -753,6 +753,8 @@ public class Bot
             }
             catch (ApiException)
             {
+                Globals.ReceiveStatus = -1;
+                Globals.SendStatus = -1;
                 await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
                 string query = "update bot_table set receive_status = -1,send_status = -1 where 1";
                 await using var comm = new MySqlCommand(query, conn);
