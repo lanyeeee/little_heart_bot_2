@@ -1,2 +1,2 @@
 mkdir log
-nohup dotnet run --configuration Release --nowarn>> log/exception.log &
+nohup dotnet run --configuration Release >> log/exception.log &

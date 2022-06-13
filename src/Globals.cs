@@ -22,10 +22,10 @@ public static class Globals
         JObject json = JObject.Parse(jsonString);
         var builder = new MySqlConnectionStringBuilder
         {
-            Server = (string)json["host"],
-            Database = (string)json["database"],
-            UserID = (string)json["user"],
-            Password = (string)json["password"]
+            Server = (string?)json["host"],
+            Database = (string?)json["database"],
+            UserID = (string?)json["user"],
+            Password = (string?)json["password"]
         };
         ConnectionString = builder.ConnectionString;
 

@@ -32,15 +32,11 @@ public class App
             {
                 Uid = reader.GetString("uid"),
                 Cookie = reader.GetString("cookie"),
-                Csrf = reader.GetString("csrf"),
-                Completed = reader.GetInt32("completed"),
-                MsgTimestamp = reader.GetString("msg_timestamp"),
-                ConfigNum = reader.GetInt32("config_num")
+                Csrf = reader.GetString("csrf")
             };
             if (await user.IsValidCookie())
             {
                 await user.FetchTarget();
-                user.CookieStatus = 1;
                 _users.Add(user);
             }
         }

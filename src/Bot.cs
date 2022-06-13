@@ -14,11 +14,11 @@ public class Bot
     private static Bot? _instance;
     public static Bot Instance => _instance ?? new Bot();
 
-    private readonly string _uid;
-    private readonly string _cookie;
-    private readonly string _csrf;
-    private readonly string _devId;
-    private readonly Logger? _logger;
+    private readonly string? _uid;
+    private readonly string? _cookie;
+    private readonly string? _csrf;
+    private readonly string? _devId;
+    private readonly Logger _logger;
 
     private bool _talking = true;
     private int _talkNum;
@@ -27,6 +27,7 @@ public class Bot
 
     private Bot()
     {
+        _instance = this;
         DateTimeOffset today = DateTime.Today;
         _midnight = today.ToUnixTimeSeconds();
 
@@ -69,12 +70,12 @@ public class Bot
         }
     }
 
-    private string GetCsrf(string cookie)
+    private string? GetCsrf(string? cookie)
     {
-        return cookie.Substring(cookie.IndexOf("bili_jct=") + 9, 32);
+        return cookie?.Substring(cookie.IndexOf("bili_jct=", StringComparison.Ordinal) + 9, 32);
     }
 
-    private async Task<JToken> GetSessionList()
+    private async Task<JToken?> GetSessionList()
     {
         //普通的私信session
         HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
@@ -85,7 +86,7 @@ public class Bot
         });
         await Task.Delay(1000);
         JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-        int code = (int)responseJson["code"];
+        int? code = (int?)responseJson["code"];
         if (code != 0)
         {
             await _logger.Log(responseJson);
@@ -93,17 +94,17 @@ public class Bot
             throw new ApiException();
         }
 
-        JArray sessionList = (JArray)responseJson["data"]["session_list"];
+        JArray? sessionList = (JArray?)responseJson["data"]!["session_list"];
 
         //被屏蔽的私信session
-        response = Globals.HttpClient.Send(new HttpRequestMessage
+        response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
         {
             Method = HttpMethod.Get,
             RequestUri = new Uri("https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=5"),
             Headers = { { "Cookie", _cookie } },
         });
-        responseJson = JObject.Parse(response.Content.ReadAsStringAsync().Result);
-        code = (int)responseJson["code"];
+        responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
+        code = (int?)responseJson["code"];
         if (code != 0)
         {
             await _logger.Log(responseJson);
@@ -111,9 +112,14 @@ public class Bot
             throw new ApiException();
         }
 
-        foreach (var s in responseJson["data"]["session_list"])
+        var ss = responseJson["data"]!["session_list"];
+
+        if (ss != null)
         {
-            sessionList.Add(s);
+            foreach (var s in ss)
+            {
+                sessionList?.Add(s);
+            }
         }
 
         return sessionList;
@@ -123,12 +129,12 @@ public class Bot
     {
         long timestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
         //查询次数超过5次或者查询频率小于1分钟就忽略这次查询
-        if (_sessions[uid].ConfigNum >= 5 || timestamp - Int64.Parse(_sessions[uid].ConfigTimestamp) < 60)
+        if (_sessions[uid].ConfigNum >= 5 || timestamp - Int64.Parse(_sessions[uid].ConfigTimestamp!) < 60)
         {
             return;
         }
 
-        var payload = new Dictionary<string, string>
+        var payload = new Dictionary<string, string?>
         {
             { "msg[sender_uid]", _uid },
             { "msg[receiver_id]", uid },
@@ -229,13 +235,13 @@ public class Bot
                 targetText += "未发送原因：" + msgText + "\n";
             }
         }
-        
+
         string msg = "所有任务状态：\n" +
                      targetText + "\n" +
                      $"cookie状态：{cookieText}，{cookieStatusText}\n" +
                      $"今日任务状态：{completedText}\n" +
                      $"已用查询次数：{configNumText}\n";
-        
+
         if (msg.Length > 470) //上限提升后文字可能会过长，如果太长则化简
         {
             targetText = "";
@@ -245,22 +251,23 @@ public class Bot
                 targetText +=
                     $"{target.Name}：弹幕({msgNum}/1) 点赞({target.LikeNum}/3) 分享({target.ShareNum}/5)\n";
             }
+
             msg = "所有任务状态(简略版)：\n" +
                   targetText + "\n" +
                   $"cookie状态：{cookieText}，{cookieStatusText}\n" +
                   $"今日任务状态：{completedText}\n" +
                   $"已用查询次数：{configNumText}\n";
         }
-        
+
         if (msg.Length > 470) //如果化简后还太长，则极简
         {
             targetText = "";
             foreach (var target in targets)
             {
-                int msgNum = target.MsgStatus == 1 ? 1 : 0;
                 targetText +=
                     $"{target.Name}\n";
             }
+
             msg = "所有任务状态(极简版)：\n" +
                   targetText + "\n" +
                   $"cookie状态：{cookieText}，{cookieStatusText}\n" +
@@ -290,7 +297,7 @@ public class Bot
         });
         await Task.Delay(1000);
         JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-        int code = (int)responseJson["code"];
+        int? code = (int?)responseJson["code"];
 
         if (code != 0)
         {
@@ -329,7 +336,7 @@ public class Bot
                 _sessions[uid].Cookie += parameter;
             }
 
-            if (_sessions[uid].Cookie.Length > 2000)
+            if (_sessions[uid].Cookie?.Length > 2000)
             {
                 _sessions[uid].Cookie = "";
             }
@@ -342,7 +349,8 @@ public class Bot
                 string targetUid = pair[0].Trim();
                 string msg = pair[1].Trim();
                 //targetUid不是数字 或者 弹幕太长 或者 设置的目标太多，就忽略掉
-                if (!Globals.IsNumeric(targetUid) || msg.Length > 20 || _sessions[uid].TargetNum >= 50)//TODO  暂时将上限开到50看看效果
+                if (!Globals.IsNumeric(targetUid) || msg.Length > 20 ||
+                    _sessions[uid].TargetNum >= 50) //TODO  暂时将上限开到50看看效果
                 {
                     return;
                 }
@@ -354,7 +362,7 @@ public class Bot
                 });
                 await Task.Delay(1000);
                 JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-                int code = (int)responseJson["code"];
+                int? code = (int?)responseJson["code"];
 
                 if (code == -400) //忽略掉错误的targetUid
                 {
@@ -368,10 +376,11 @@ public class Bot
                     throw new ApiException();
                 }
 
-                JToken data = responseJson["data"];
+                JToken? data = responseJson["data"];
+                if (data == null) return;
 
-                string targetName = (string)data["name"];
-                string roomId = (string)data["live_room"]["roomid"];
+                string? targetName = (string?)data["name"];
+                string? roomId = (string?)data["live_room"]!["roomid"];
 
                 await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
                 string query = $"select * from target_table where uid = {uid} and target_uid = {targetUid}";
@@ -428,6 +437,7 @@ public class Bot
                     await using var comm = new MySqlCommand(query, conn);
                     await comm.ExecuteNonQueryAsync();
                 }
+
                 await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
                 {
                     string query = $"update user_table set target_num = 0 where uid = {uid}";
@@ -446,6 +456,7 @@ public class Bot
                     await comm.PrepareAsync();
                     await comm.ExecuteNonQueryAsync();
                 }
+
                 await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
                 {
                     string query = $"update user_table set target_num = {_sessions[uid].TargetNum} where uid = {uid}";
@@ -464,8 +475,8 @@ public class Bot
             {
                 try
                 {
-                    _sessions[uid].Cookie = _sessions[uid].Cookie.Replace("\n", "");
-                    string csrf = GetCsrf(_sessions[uid].Cookie);
+                    _sessions[uid].Cookie = _sessions[uid].Cookie?.Replace("\n", "");
+                    string? csrf = GetCsrf(_sessions[uid].Cookie);
                     await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
                     {
                         string query =
@@ -534,19 +545,25 @@ public class Bot
         }
     }
 
-    private async Task HandleMessage(string uid, int lastTimestamp, IEnumerable<JToken> messages)
+    private async Task HandleMessage(string uid, int lastTimestamp, IEnumerable<JToken>? messages)
     {
+        if (messages == null) return;
         foreach (var msg in messages)
         {
-            if ((int)msg["timestamp"] > lastTimestamp && (string)msg["sender_uid"] != _uid && (int)msg["msg_type"] == 1)
+            if ((int?)msg["timestamp"] > lastTimestamp && (string?)msg["sender_uid"] != _uid &&
+                (int?)msg["msg_type"] == 1)
             {
                 try
                 {
-                    _sessions[uid].MsgTimestamp = (string)msg["timestamp"];
-                    string content = (string)JObject.Parse((string)msg["content"])["content"];
-                    content = content.Trim();
+                    string? timestamp = (string?)msg["timestamp"];
+                    string? contentJson = (string?)msg["content"];
+                    if (timestamp == null || contentJson == null) return;
+
+                    _sessions[uid].MsgTimestamp = timestamp;
+                    string? content = (string?)JObject.Parse(contentJson)["content"];
+                    content = content?.Trim();
                     await _logger.Log($"{uid}：{content}");
-                    if (content.StartsWith("/"))
+                    if (content?.StartsWith("/") ?? false)
                     {
                         string[] pair = content.Split(" ", 2);
                         if (pair.Length == 2)
@@ -571,14 +588,18 @@ public class Bot
 
     private async Task HandleIncomingMessage()
     {
-        JToken sessionList = await GetSessionList();
+        JToken? sessionList = await GetSessionList();
+        if (sessionList == null) return;
+
         foreach (var session in sessionList)
         {
-            string uid = (string)session["talker_id"];
-            int timestamp = session["last_msg"].HasValues ? (int)session["last_msg"]["timestamp"] : 0;
+            string? uid = (string?)session["talker_id"];
+            if (uid == null) continue;
+
+            int? timestamp = session["last_msg"]!.HasValues ? (int?)session["last_msg"]!["timestamp"] : 0;
 
             //新用户或发新消息的用户
-            if (!_sessions.ContainsKey(uid) || timestamp > Int32.Parse(_sessions[uid].MsgTimestamp))
+            if (!_sessions.ContainsKey(uid) || timestamp > Int32.Parse(_sessions[uid].MsgTimestamp!))
             {
                 HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
                 {
@@ -590,7 +611,7 @@ public class Bot
                 });
                 await Task.Delay(1000);
                 JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-                int code = (int)responseJson["code"];
+                int? code = (int?)responseJson["code"];
                 if (code != 0)
                 {
                     await _logger.Log(responseJson);
@@ -598,7 +619,7 @@ public class Bot
                     throw new ApiException();
                 }
 
-                IEnumerable<JToken> messages = responseJson["data"]["messages"].Reverse();
+                IEnumerable<JToken>? messages = responseJson["data"]!["messages"]?.Reverse();
 
                 if (_sessions.ContainsKey(uid))
                 {
@@ -609,7 +630,7 @@ public class Bot
                         await comm.ExecuteNonQueryAsync();
                     }
 
-                    int lastTimestamp = Int32.Parse(_sessions[uid].MsgTimestamp);
+                    int lastTimestamp = Int32.Parse(_sessions[uid].MsgTimestamp!);
                     await HandleMessage(uid, lastTimestamp, messages);
                 }
                 else
@@ -677,6 +698,7 @@ public class Bot
         {
             sign += "弹幕、点赞、分享正常冷却中";
         }
+
         sign += "，";
 
 
@@ -688,6 +710,7 @@ public class Bot
         {
             sign += "接收私信冷却中";
         }
+
         sign += "，";
 
         if (Globals.SendStatus == 0)
@@ -707,48 +730,57 @@ public class Bot
         return sign;
     }
 
+
     private async Task UpdateSign()
     {
         int lastAppStatus = 1;
         int lastReceiveStatus = 1;
         int lastSendStatus = 1;
+
         while (true)
         {
-            if (lastAppStatus != Globals.AppStatus || lastReceiveStatus != Globals.ReceiveStatus ||
-                lastSendStatus != Globals.SendStatus)
+            try
             {
-                string sign = MakeSign();
-
-                var payload = new Dictionary<string, string>
+                if (lastAppStatus != Globals.AppStatus || lastReceiveStatus != Globals.ReceiveStatus ||
+                    lastSendStatus != Globals.SendStatus)
                 {
-                    { "user_sign", sign },
-                    { "jsonp", "jsonp" },
-                    { "csrf", _csrf }
-                };
+                    string sign = MakeSign();
 
-                HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
-                {
-                    Method = HttpMethod.Post,
-                    RequestUri = new Uri("https://api.bilibili.com/x/member/web/sign/update"),
-                    Headers = { { "Cookie", _cookie } },
-                    Content = new FormUrlEncodedContent(payload)
-                });
-                await Task.Delay(1000);
-                JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-                await _logger.Log(responseJson);
-                await _logger.Log("签名改为：" + sign);
-                lastAppStatus = Globals.AppStatus;
-                lastReceiveStatus = Globals.ReceiveStatus;
-                lastSendStatus = Globals.SendStatus;
+                    var payload = new Dictionary<string, string?>
+                    {
+                        { "user_sign", sign },
+                        { "jsonp", "jsonp" },
+                        { "csrf", _csrf }
+                    };
+
+                    HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Post,
+                        RequestUri = new Uri("https://api.bilibili.com/x/member/web/sign/update"),
+                        Headers = { { "Cookie", _cookie } },
+                        Content = new FormUrlEncodedContent(payload)
+                    });
+                    await Task.Delay(1000);
+                    JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
+                    await _logger.Log(responseJson);
+                    await _logger.Log("签名改为：" + sign);
+                    lastAppStatus = Globals.AppStatus;
+                    lastReceiveStatus = Globals.ReceiveStatus;
+                    lastSendStatus = Globals.SendStatus;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
             }
 
             await Task.Delay(1000);
         }
     }
 
-    public async Task Main()
+    private async Task BotMain()
     {
-        Task updateSignTask = UpdateSign();
         while (true)
         {
             try
@@ -815,5 +847,14 @@ public class Bot
                 _sessions.Clear();
             }
         }
+    }
+
+    public async Task Main()
+    {
+        var tasks = new List<Task>
+        {
+            UpdateSign(), BotMain()
+        };
+        await Task.WhenAll(tasks);
     }
 }
