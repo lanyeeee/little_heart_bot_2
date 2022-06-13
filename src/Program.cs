@@ -1,4 +1,5 @@
-using MySqlConnector;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace little_heart_bot_2;
 
