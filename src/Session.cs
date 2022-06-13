@@ -2,7 +2,7 @@ namespace little_heart_bot_2;
 
 public class Session
 {
-    public string? Uid { get; set; }
+    public string? Uid { get; init; }
     public string? MsgTimestamp { get; set; }
     public string? ConfigTimestamp { get; set; }
     public string? Cookie { get; set; }

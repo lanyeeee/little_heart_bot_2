@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using MySqlConnector;
 
 namespace little_heart_bot_2;
@@ -45,35 +42,21 @@ public class App
     private async Task SendMsg()
     {
         List<Task> tasks = new List<Task>();
-        foreach (var user in _users)
-        {
-            tasks.Add(user.SendMsg());
-        }
-
+        _users.ForEach(user => tasks.Add(user.SendMsg()));
         await Task.WhenAll(tasks);
     }
 
     private async Task PostLike()
     {
         List<Task> tasks = new List<Task>();
-        tasks.Clear();
-        foreach (var user in _users)
-        {
-            tasks.Add(user.PostLike());
-        }
-
+        _users.ForEach(user => tasks.Add(user.PostLike()));
         await Task.WhenAll(tasks);
     }
 
     private async Task ShareRoom()
     {
         List<Task> tasks = new List<Task>();
-        tasks.Clear();
-        foreach (var user in _users)
-        {
-            tasks.Add(user.ShareRoom());
-        }
-
+        _users.ForEach(user => tasks.Add(user.ShareRoom()));
         await Task.WhenAll(tasks);
     }
 

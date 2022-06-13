@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
 using MySqlConnector;
 using Newtonsoft.Json.Linq;
 
@@ -128,10 +124,7 @@ public class User
 
         foreach (var target in Targets)
         {
-            if (target.MsgStatus != 0)
-            {
-                continue;
-            }
+            if (target.MsgStatus != 0) continue;
 
             if (target.RoomId == "0")
             {
@@ -245,10 +238,7 @@ public class User
 
         foreach (var target in Targets)
         {
-            if (target.RoomId == "0")
-            {
-                continue;
-            }
+            if (target.RoomId == "0") continue;
 
             var payload = new Dictionary<string, string?>
             {

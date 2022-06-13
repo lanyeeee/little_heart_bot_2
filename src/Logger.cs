@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
 namespace little_heart_bot_2;
 
 public class Logger
@@ -47,12 +43,7 @@ public class Logger
 
     private bool NeedToRoll()
     {
-        if (new FileInfo("log/" + _fileName).Length > 1024 * 1024)
-        {
-            return true;
-        }
-
-        return false;
+        return new FileInfo("log/" + _fileName).Length > 1024 * 1024;
     }
 
     private void Roll()
