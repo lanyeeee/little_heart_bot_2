@@ -251,11 +251,27 @@ public class Bot
                   $"今日任务状态：{completedText}\n" +
                   $"已用查询次数：{configNumText}\n";
         }
+        
+        if (msg.Length > 470) //如果化简后还太长，则极简
+        {
+            targetText = "";
+            foreach (var target in targets)
+            {
+                int msgNum = target.MsgStatus == 1 ? 1 : 0;
+                targetText +=
+                    $"{target.Name}\n";
+            }
+            msg = "所有任务状态(极简版)：\n" +
+                  targetText + "\n" +
+                  $"cookie状态：{cookieText}，{cookieStatusText}\n" +
+                  $"今日任务状态：{completedText}\n" +
+                  $"已用查询次数：{configNumText}\n";
+        }
 
-        if (msg.Length > 470) //如果化简后还是太长，就直接省略
+        if (msg.Length > 470) //如果极简还是太长，就直接省略
         {
             msg = "所有任务状态：\n" +
-                  "目标太多，全列出来长度会超过私信限制，因此直接省略\n" + "\n" +
+                  "目标太多，光是列出名字长度都会超过私信限制，因此直接省略\n" + "\n" +
                   $"cookie状态：{cookieText}，{cookieStatusText}\n" +
                   $"今日任务状态：{completedText}\n" +
                   $"已用查询次数：{configNumText}\n";
