@@ -9,14 +9,10 @@ namespace little_heart_bot_2;
 
 public class User
 {
-    public string Uid { get; set; }
-    public string Cookie { get; set; }
-    public string Csrf { get; set; }
-    public int Completed { get; set; }
-    public int CookieStatus { get; set; }
-    public string MsgTimestamp { get; set; }
-    public int ConfigNum { get; set; }
-    private List<Target> Targets { get; set; }
+    public string? Uid { get; init; }
+    public string? Cookie { get; init; }
+    public string? Csrf { get; init; }
+    private List<Target>? Targets { get; set; }
     private readonly Logger _logger;
 
 
@@ -81,6 +77,7 @@ public class User
             await comm.ExecuteNonQueryAsync();
         }
     }
+
     public async Task<bool> IsValidCookie()
     {
         try
@@ -93,7 +90,7 @@ public class User
             });
             await Task.Delay(1000);
             JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-            int code = (int)responseJson["code"];
+            int? code = (int?)responseJson["code"];
 
             if (code == -412)
             {
@@ -113,7 +110,7 @@ public class User
             string query = $"update user_table set cookie_status = 1 where uid = {Uid}";
             await using var comm = new MySqlCommand(query, conn);
             await comm.ExecuteNonQueryAsync();
-            
+
 
             return true;
         }
@@ -127,6 +124,8 @@ public class User
 
     public async Task SendMsg()
     {
+        if (Targets == null) return;
+
         foreach (var target in Targets)
         {
             if (target.MsgStatus != 0)
@@ -148,7 +147,7 @@ public class User
                 continue;
             }
 
-            var payload = new Dictionary<string, string>
+            var payload = new Dictionary<string, string?>
             {
                 { "bubble", "0" },
                 { "msg", target.MsgContent },
@@ -169,7 +168,7 @@ public class User
             });
             await Task.Delay(1000);
             JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-            int code = (int)responseJson["code"];
+            int? code = (int?)responseJson["code"];
 
             if (code == -111 || code == -101)
             {
@@ -207,7 +206,7 @@ public class User
                 continue;
             }
 
-            if ((string)responseJson["msg"] == "k")
+            if ((string?)responseJson["msg"] == "k")
             {
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送的弹幕 '{target.MsgContent}' 中含有屏蔽词");
@@ -242,6 +241,8 @@ public class User
 
     public async Task PostLike()
     {
+        if (Targets == null) return;
+
         foreach (var target in Targets)
         {
             if (target.RoomId == "0")
@@ -249,7 +250,7 @@ public class User
                 continue;
             }
 
-            var payload = new Dictionary<string, string>
+            var payload = new Dictionary<string, string?>
             {
                 { "roomid", target.RoomId },
                 { "csrf", Csrf },
@@ -266,7 +267,7 @@ public class User
                 });
                 await Task.Delay(1000);
                 JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-                int code = (int)responseJson["code"];
+                int? code = (int?)responseJson["code"];
 
                 if (code != 0)
                 {
@@ -289,9 +290,11 @@ public class User
 
     public async Task ShareRoom()
     {
+        if (Targets == null) return;
+
         foreach (var target in Targets)
         {
-            var payload = new Dictionary<string, string>
+            var payload = new Dictionary<string, string?>
             {
                 { "roomid", target.RoomId },
                 { "interact_type", "3" },
@@ -309,7 +312,7 @@ public class User
                 });
                 await Task.Delay(1000);
                 JObject responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
-                int code = (int)responseJson["code"];
+                int? code = (int?)responseJson["code"];
 
                 if (code != 0)
                 {
@@ -333,11 +336,11 @@ public class User
 
 class Target
 {
-    public string Uid { get; set; }
-    public string Name { get; set; }
-    public string RoomId { get; set; }
-    public int LikeNum { get; set; }
-    public int ShareNum { get; set; }
-    public string MsgContent { get; set; }
-    public int MsgStatus { get; set; }
+    public string? Uid { get; init; }
+    public string? Name { get; init; }
+    public string? RoomId { get; init; }
+    public int LikeNum { get; init; }
+    public int ShareNum { get; init; }
+    public string? MsgContent { get; init; }
+    public int MsgStatus { get; init; }
 }
