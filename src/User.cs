@@ -222,13 +222,11 @@ public class User
             else
             {
                 target.MsgStatus = 1;
-                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
-                {
-                    string query =
-                        $"update target_table set msg_status = 1 where uid={Uid} and target_uid = {target.Uid}";
-                    await using var comm = new MySqlCommand(query, conn);
-                    await comm.ExecuteNonQueryAsync();
-                }
+                await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
+                string query =
+                    $"update target_table set msg_status = 1 where uid={Uid} and target_uid = {target.Uid}";
+                await using var comm = new MySqlCommand(query, conn);
+                await comm.ExecuteNonQueryAsync();
             }
 
             // await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕成功");
@@ -332,15 +330,4 @@ public class User
             }
         }
     }
-}
-
-public class Target
-{
-    public string? Uid { get; init; }
-    public string? Name { get; init; }
-    public string? RoomId { get; init; }
-    public int LikeNum { get; set; }
-    public int ShareNum { get; set; }
-    public string? MsgContent { get; init; }
-    public int MsgStatus { get; set; }
 }
