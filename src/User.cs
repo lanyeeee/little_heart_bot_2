@@ -8,7 +8,7 @@ public class User
     public string? Uid { get; init; }
     public string? Cookie { get; init; }
     public string? Csrf { get; init; }
-    private List<Target>? Targets { get; set; }
+    public List<Target>? Targets { get; private set; }
     private readonly Logger _logger;
 
 
@@ -40,23 +40,6 @@ public class User
         }
     }
 
-    private async Task CookieExpire()
-    {
-        await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
-        {
-            string query = $"update user_table set cookie_status = -1 where uid = {Uid}";
-            await using var comm = new MySqlCommand(query, conn);
-            await comm.ExecuteNonQueryAsync();
-        }
-
-        await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
-        {
-            string query = $"update target_table set msg_status = -3 where uid = {Uid}";
-            await using var comm = new MySqlCommand(query, conn);
-            await comm.ExecuteNonQueryAsync();
-        }
-    }
-
     private async Task CookieInvalid()
     {
         await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
@@ -66,6 +49,7 @@ public class User
             await comm.ExecuteNonQueryAsync();
         }
 
+        Targets?.ForEach(target => target.MsgStatus = -3);
         await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
         {
             string query = $"update target_table set msg_status = -3 where uid = {Uid}";
@@ -152,6 +136,10 @@ public class User
                 { "csrf", Csrf },
                 { "csrf_token", Csrf }
             };
+
+            int sendNum = 0;
+            SendAgain:
+            sendNum++;
             HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
             {
                 Method = HttpMethod.Post,
@@ -167,7 +155,8 @@ public class User
             {
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 提供的cookie已过期");
-                await CookieExpire();
+
+                await CookieInvalid();
                 return;
             }
 
@@ -176,55 +165,70 @@ public class User
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 无法给 {target.Name}(uid:{target.Uid}) 发送弹幕 '{target.MsgContent}'");
 
+                target.MsgStatus = -2;
                 await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
                 string query =
                     $"update target_table set msg_status = -2 where uid={Uid} and target_uid = {target.Uid}";
                 await using var comm = new MySqlCommand(query, conn);
                 await comm.ExecuteNonQueryAsync();
-
-                continue;
             }
+            else if (code == 10031)
+            {
+                if (sendNum < 3)
+                {
+                    await Task.Delay(10000);
+                    goto SendAgain;
+                }
 
-            if (code == 10024 || code == 1003)
+                await _logger.Log(responseJson);
+                await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发了3次弹幕都说太过频繁");
+                target.MsgStatus = -6;
+                await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
+                string query =
+                    $"update target_table set msg_status = -6 where uid={Uid} and target_uid = {target.Uid}";
+                await using var comm = new MySqlCommand(query, conn);
+                await comm.ExecuteNonQueryAsync();
+            }
+            else if (code == 10024 || code == 1003)
             {
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 已被 {target.Name}(uid:{target.Uid}) 封禁");
 
+                target.MsgStatus = -5;
                 await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
                 string query =
                     $"update target_table set msg_status = -5 where uid={Uid} and target_uid = {target.Uid}";
                 await using var comm = new MySqlCommand(query, conn);
                 await comm.ExecuteNonQueryAsync();
-
-                continue;
             }
-
-            if ((string?)responseJson["msg"] == "k")
+            else if ((string?)responseJson["msg"] == "k")
             {
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送的弹幕 '{target.MsgContent}' 中含有屏蔽词");
 
+                target.MsgStatus = -1;
                 await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
                 string query =
                     $"update target_table set msg_status = -1 where uid={Uid} and target_uid = {target.Uid}";
                 await using var comm = new MySqlCommand(query, conn);
                 await comm.ExecuteNonQueryAsync();
-
-                continue;
             }
-
-            if (code != 0)
+            else if (code != 0)
             {
                 await _logger.Log(responseJson);
                 await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕失败");
                 throw new ApiException();
             }
-
-            await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+            else
             {
-                string query = $"update target_table set msg_status = 1 where uid={Uid} and target_uid = {target.Uid}";
-                await using var comm = new MySqlCommand(query, conn);
-                await comm.ExecuteNonQueryAsync();
+                target.MsgStatus = 1;
+                await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
+                {
+                    string query =
+                        $"update target_table set msg_status = 1 where uid={Uid} and target_uid = {target.Uid}";
+                    await using var comm = new MySqlCommand(query, conn);
+                    await comm.ExecuteNonQueryAsync();
+                }
             }
 
             // await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕成功");
@@ -246,7 +250,9 @@ public class User
                 { "csrf", Csrf },
                 { "csrf_token", Csrf }
             };
-            for (int i = 0; i < 3 - target.LikeNum; i++)
+
+            int loopNum = 3 - target.LikeNum;
+            for (int i = 0; i < loopNum; i++)
             {
                 HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
                 {
@@ -265,6 +271,7 @@ public class User
                     throw new ApiException();
                 }
 
+                target.LikeNum++;
                 await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
                 {
                     string query =
@@ -291,7 +298,9 @@ public class User
                 { "csrf", Csrf },
                 { "csrf_token", Csrf }
             };
-            for (int i = 0; i < 5 - target.ShareNum; i++)
+
+            int loopNum = 5 - target.ShareNum;
+            for (int i = 0; i < loopNum; i++)
             {
                 HttpResponseMessage response = await Globals.HttpClient.SendAsync(new HttpRequestMessage
                 {
@@ -310,6 +319,7 @@ public class User
                     throw new ApiException();
                 }
 
+                target.ShareNum++;
                 await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
                 {
                     string query =
@@ -324,13 +334,13 @@ public class User
     }
 }
 
-class Target
+public class Target
 {
     public string? Uid { get; init; }
     public string? Name { get; init; }
     public string? RoomId { get; init; }
-    public int LikeNum { get; init; }
-    public int ShareNum { get; init; }
+    public int LikeNum { get; set; }
+    public int ShareNum { get; set; }
     public string? MsgContent { get; init; }
-    public int MsgStatus { get; init; }
+    public int MsgStatus { get; set; }
 }

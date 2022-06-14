@@ -64,38 +64,39 @@ public class App
     {
         foreach (var user in _users)
         {
+            if (user.Targets == null) continue;
             int completed = 1;
+
+            foreach (var target in user.Targets)
+            {
+                if (target.MsgStatus != 0 && target.LikeNum == 3 && target.ShareNum == 5)
+                {
+                    //把对应的target标记为已完成
+                    await using var conn1 = await Globals.GetOpenedMysqlConnectionAsync();
+                    string query =
+                        $"update target_table set completed = 1 where uid = {user.Uid} and target_uid = {target.Uid}";
+                    await using var comm1 = new MySqlCommand(query, conn1);
+                    await comm1.ExecuteNonQueryAsync();
+                    await _logger.Log($"uid {user.Uid} 在 {target.Name}(uid:{target.Uid}) 的任务完成");
+                }
+                else
+                {
+                    //如果有未完成的任务就将用户标记为未完成
+                    completed = 0;
+                    string msgText = target.MsgStatus == 1 ? "1" : "0";
+                    await _logger.Log(
+                        $"uid {user.Uid} 在 {target.Name}(uid:{target.Uid}) 的任务未完成，弹幕({msgText}/1)，点赞({target.LikeNum}/3)，分享({target.ShareNum}/5)");
+                }
+            }
+
+            //看看这个用户还有没有未完成的任务
             await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
             {
-                string query =
-                    $"select *  from target_table where uid = {user.Uid} and completed = 0";
+                string query = $"select * from target_table where  completed = 0 and uid = {user.Uid}";
                 await using var comm = new MySqlCommand(query, conn);
                 await using var reader = await comm.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    int num = reader.GetInt32("num");
-                    string targetUid = reader.GetString("target_uid");
-                    string targetName = reader.GetString("target_name");
-                    int msgStatus = reader.GetInt32("msg_status");
-                    int likeNum = reader.GetInt32("like_num");
-                    int shareNum = reader.GetInt32("share_num");
-                    if (msgStatus != 0 && likeNum == 3 && shareNum == 5)
-                    {
-                        //把对应的target标记为已完成
-                        await using var conn1 = await Globals.GetOpenedMysqlConnectionAsync();
-                        query = $"update target_table set completed = 1 where num = {num}";
-                        await using var comm1 = new MySqlCommand(query, conn1);
-                        await comm1.ExecuteNonQueryAsync();
-                        await _logger.Log($"uid {user.Uid} 在 {targetName}(uid:{targetUid}) 的任务完成");
-                    }
-                    else
-                    {
-                        completed = 0;
-                        string msgText = msgStatus == 1 ? "1" : "0";
-                        await _logger.Log(
-                            $"uid {user.Uid} 在 {targetName}(uid:{targetUid}) 的任务未完成，弹幕({msgText}/1)，点赞({likeNum}/3)，分享({shareNum}/5)");
-                    }
-                }
+                //如果有未完成的任务就将用户标记为未完成
+                if (await reader.ReadAsync()) completed = 0;
             }
 
             await using (var conn = await Globals.GetOpenedMysqlConnectionAsync())
