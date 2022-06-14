@@ -224,6 +224,10 @@ public class Bot
             {
                 msgText = "被目标直播间禁言";
             }
+            else if (target.MsgStatus == -6) //连着发了3条都说太频繁
+            {
+                msgText = "尝试了3次，每次间隔10秒，依然提示弹幕发送太过频繁";
+            }
 
             targetText += "未发送原因：" + msgText + "\n";
         }
