@@ -49,6 +49,10 @@ public class Target
         {
             msgText = "尝试了3次，每次间隔10秒，依然提示弹幕发送太过频繁";
         }
+        else if (MsgStatus == -400)
+        {
+            msgText = "未知错误";
+        }
 
         targetText += "未发送原因：" + msgText + "\n";
         return targetText;

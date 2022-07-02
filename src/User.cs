@@ -213,6 +213,18 @@ public class User
                 await using var comm = new MySqlCommand(query, conn);
                 await comm.ExecuteNonQueryAsync();
             }
+            else if (code == 11000)
+            {
+                await _logger.Log(responseJson);
+                await _logger.Log($"uid {Uid} 给 {target.Name}(uid:{target.Uid}) 发送弹幕失败");
+
+                target.MsgStatus = -400;
+                await using var conn = await Globals.GetOpenedMysqlConnectionAsync();
+                string query =
+                    $"update target_table set msg_status = -400 where uid={Uid} and target_uid = {target.Uid}";
+                await using var comm = new MySqlCommand(query, conn);
+                await comm.ExecuteNonQueryAsync();
+            }
             else if (code != 0)
             {
                 await _logger.Log(responseJson);
