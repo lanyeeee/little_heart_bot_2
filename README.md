@@ -2,6 +2,9 @@
 <img src="img/avatar.png">
 <h3 align="center">小心心bot 2.0</h3>
 
+# 已失效 
+[新版](https://github.com/lanyeeee/little_heart_bot_3)  
+
 # 简介
 
 部署成功后你也能成为小心心bot
